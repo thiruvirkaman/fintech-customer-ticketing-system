@@ -1,0 +1,8 @@
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+.env
+*.py[cod]
+data/derived/*
+!data/derived/.gitkeep

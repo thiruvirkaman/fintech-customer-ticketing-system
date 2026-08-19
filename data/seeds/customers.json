@@ -1,0 +1,162 @@
+[
+  {
+    "customer_id": "CUST-DEMO-0001",
+    "full_name": "Demo Customer 01",
+    "email": "demo.customer01@example.com",
+    "mobile": "9000000001",
+    "pan": "DMTST0001A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0002",
+    "full_name": "Demo Customer 02",
+    "email": "demo.customer02@example.com",
+    "mobile": "9000000002",
+    "pan": "DMTST0002A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0003",
+    "full_name": "Demo Customer 03",
+    "email": "demo.customer03@example.com",
+    "mobile": "9000000003",
+    "pan": "DMTST0003A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0004",
+    "full_name": "Demo Customer 04",
+    "email": "demo.customer04@example.com",
+    "mobile": "9000000004",
+    "pan": "DMTST0004A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0005",
+    "full_name": "Demo Customer 05",
+    "email": "demo.customer05@example.com",
+    "mobile": "9000000005",
+    "pan": "DMTST0005A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0006",
+    "full_name": "Demo Customer 06",
+    "email": "demo.customer06@example.com",
+    "mobile": "9000000006",
+    "pan": "DMTST0006A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0007",
+    "full_name": "Demo Customer 07",
+    "email": "demo.customer07@example.com",
+    "mobile": "9000000007",
+    "pan": "DMTST0007A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0008",
+    "full_name": "Demo Customer 08",
+    "email": "demo.customer08@example.com",
+    "mobile": "9000000008",
+    "pan": "DMTST0008A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0009",
+    "full_name": "Demo Customer 09",
+    "email": "demo.customer09@example.com",
+    "mobile": "9000000009",
+    "pan": "DMTST0009A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0010",
+    "full_name": "Demo Customer 10",
+    "email": "demo.customer10@example.com",
+    "mobile": "9000000010",
+    "pan": "DMTST0010A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0011",
+    "full_name": "Demo Customer 11",
+    "email": "demo.customer11@example.com",
+    "mobile": "9000000011",
+    "pan": "DMTST0011A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0012",
+    "full_name": "Demo Customer 12",
+    "email": "demo.customer12@example.com",
+    "mobile": "9000000012",
+    "pan": "DMTST0012A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0013",
+    "full_name": "Demo Customer 13",
+    "email": "demo.customer13@example.com",
+    "mobile": "9000000013",
+    "pan": "DMTST0013A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0014",
+    "full_name": "Demo Customer 14",
+    "email": "demo.customer14@example.com",
+    "mobile": "9000000014",
+    "pan": "DMTST0014A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0015",
+    "full_name": "Demo Customer 15",
+    "email": "demo.customer15@example.com",
+    "mobile": "9000000015",
+    "pan": "DMTST0015A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0016",
+    "full_name": "Demo Customer 16",
+    "email": "demo.customer16@example.com",
+    "mobile": "9000000016",
+    "pan": "DMTST0016A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0017",
+    "full_name": "Demo Customer 17",
+    "email": "demo.customer17@example.com",
+    "mobile": "9000000017",
+    "pan": "DMTST0017A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0018",
+    "full_name": "Demo Customer 18",
+    "email": "demo.customer18@example.com",
+    "mobile": "9000000018",
+    "pan": "DMTST0018A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0019",
+    "full_name": "Demo Customer 19",
+    "email": "demo.customer19@example.com",
+    "mobile": "9000000019",
+    "pan": "DMTST0019A",
+    "data_classification": "SYNTHETIC"
+  },
+  {
+    "customer_id": "CUST-DEMO-0020",
+    "full_name": "Demo Customer 20",
+    "email": "demo.customer20@example.com",
+    "mobile": "9000000020",
+    "pan": "DMTST0020A",
+    "data_classification": "SYNTHETIC"
+  }
+]

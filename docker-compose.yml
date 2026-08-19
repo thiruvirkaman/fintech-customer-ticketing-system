@@ -1,0 +1,14 @@
+services:
+  api:
+    build: .
+    environment:
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Set INTERNAL_API_KEY in .env (minimum 16 characters)}
+      CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-70}
+      MAX_WEB_SEARCH_ATTEMPTS: ${MAX_WEB_SEARCH_ATTEMPTS:-2}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

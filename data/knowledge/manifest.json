@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "documents": [
+    {
+      "document_id": "SYN-LOS-STATES-001",
+      "source_type": "SYNTHETIC_INTERNAL",
+      "source_title": "Synthetic LOS Journey States",
+      "path": "knowledge/synthetic/los_journey_states.md",
+      "source_url": null
+    },
+    {
+      "document_id": "SYN-LOS-FAILURES-001",
+      "source_type": "SYNTHETIC_INTERNAL",
+      "source_title": "Synthetic LOS Failure Codes",
+      "path": "knowledge/synthetic/los_failure_codes.md",
+      "source_url": null
+    },
+    {
+      "document_id": "SYN-LOS-PLAYBOOKS-001",
+      "source_type": "SYNTHETIC_INTERNAL",
+      "source_title": "Synthetic Customer Support Playbooks",
+      "path": "knowledge/synthetic/support_playbooks.md",
+      "source_url": null
+    }
+  ]
+}

@@ -1,0 +1,512 @@
+{
+  "id": "nbfcLosEmailTicketingV1",
+  "name": "NBFC LOS AI Email Ticketing",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": { "item": [{ "mode": "everyMinute" }] },
+        "simple": false,
+        "filters": { "readStatus": "unread" },
+        "options": {}
+      },
+      "id": "f95acfc4-3ef6-4e2d-b737-247f4eebcb1e",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [-1120, 160],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_GMAIL_CREDENTIAL_ID",
+          "name": "NBFC Gmail OAuth2 - configure after import"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $json;\nconst headers = source.payload?.headers ?? source.headers ?? [];\nconst header = (name) => {\n  const match = headers.find((entry) => String(entry.name ?? '').toLowerCase() === name.toLowerCase());\n  return match?.value ?? source[name.toLowerCase()] ?? source[name] ?? '';\n};\nconst findPlainPart = (parts = []) => {\n  for (const part of parts) {\n    if (part.mimeType === 'text/plain' && part.body?.data) return part.body.data;\n    const nested = findPlainPart(part.parts ?? []);\n    if (nested) return nested;\n  }\n  return '';\n};\nconst decodeBase64Url = (value) => {\n  if (!value) return '';\n  const normalizedValue = String(value).replace(/-/g, '+').replace(/_/g, '/');\n  return Buffer.from(normalizedValue, 'base64').toString('utf8');\n};\nconst from = header('From');\nconst sender = (from.match(/<([^>]+)>/)?.[1] ?? from).trim();\nconst encodedBody = source.payload?.body?.data ?? findPlainPart(source.payload?.parts);\nconst body = source.textPlain ?? source.text ?? (encodedBody ? decodeBase64Url(encodedBody) : '') ?? source.snippet ?? '';\nconst normalized = {\n  gmail_message_id: String(source.id ?? source.messageId ?? '').trim(),\n  gmail_thread_id: String(source.threadId ?? source.thread_id ?? '').trim(),\n  sender_email: sender,\n  subject: String(header('Subject') ?? ''),\n  body_text: String(body || source.snippet || '').trim(),\n  received_at: source.internalDate ? new Date(Number(source.internalDate)).toISOString() : new Date().toISOString()\n};\nfor (const field of ['gmail_message_id', 'gmail_thread_id', 'sender_email', 'body_text']) {\n  if (!normalized[field]) throw new Error(`Gmail payload is missing ${field}`);\n}\nreturn [{ json: normalized }];"
+      },
+      "id": "20f7569f-dd4c-4de5-8ca7-ceb33b35d5b7",
+      "name": "Normalize Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-900, 160]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "Tickets", "mode": "name" },
+        "filtersUI": {
+          "values": [{ "lookupColumn": "gmail_thread_id", "lookupValue": "={{ $json.gmail_thread_id }}" }]
+        },
+        "options": { "returnFirstMatch": true }
+      },
+      "id": "8d1a4a88-27e5-4d03-a8d4-5192bd06212a",
+      "name": "Lookup Ticket by Thread",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [-680, 160],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "NBFC Google Sheets OAuth2 - configure after import"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://REPLACE_WITH_FASTAPI_HOST/api/v1/preflight",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($('Normalize Email').item.json) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "7007b263-d230-440b-bca7-44889dd9506e",
+      "name": "HTTP Preflight",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-460, 160],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_FASTAPI_HEADER_CREDENTIAL_ID",
+          "name": "NBFC FastAPI X-Internal-API-Key - configure after import"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "49d52c97-d6d9-4813-b3f7-560409f92c05",
+            "leftValue": "={{ $json.allowed === false || $json.duplicate === true || $json.blocked === true }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+          }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bce6248e-1e54-489d-b334-0fd274c26694",
+      "name": "Blocked or Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-240, 160]
+    },
+    {
+      "parameters": {},
+      "id": "347c583f-7e02-458d-91d4-101da2dbef87",
+      "name": "Stop - Blocked or Duplicate",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [-20, 20]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "Tickets", "mode": "name" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ticket_id": "={{ $json.ticket.ticket_id }}",
+            "ticket_number": "={{ $json.ticket.ticket_number }}",
+            "parent_ticket_id": "={{ $json.ticket.parent_ticket_id ?? '' }}",
+            "gmail_thread_id": "={{ $('Normalize Email').item.json.gmail_thread_id }}",
+            "last_gmail_message_id": "={{ $('Normalize Email').item.json.gmail_message_id }}",
+            "customer_email": "={{ $('Normalize Email').item.json.sender_email }}",
+            "subject": "={{ $('Normalize Email').item.json.subject }}",
+            "status": "PROCESSING",
+            "created_at": "={{ $json.ticket.created_at }}",
+            "updated_at": "={{ $now.toISO() }}",
+            "outcome": "PROCESSING",
+            "last_error": ""
+          },
+          "matchingColumns": ["ticket_id"],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "cf36135a-e3cd-4932-a9ca-1ed84d1b87c1",
+      "name": "Upsert Ticket - PROCESSING",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [-20, 240],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "NBFC Google Sheets OAuth2 - configure after import"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://REPLACE_WITH_FASTAPI_HOST/api/v1/tickets/process",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ ...$('Normalize Email').item.json, ticket_id: $('HTTP Preflight').item.json.ticket.ticket_id, ticket_number: $('HTTP Preflight').item.json.ticket.ticket_number }) }}",
+        "options": { "timeout": 45000 }
+      },
+      "id": "c95400e8-daf9-4c9d-b08f-727bb54a5fb2",
+      "name": "HTTP Process Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [200, 240],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_FASTAPI_HEADER_CREDENTIAL_ID",
+          "name": "NBFC FastAPI X-Internal-API-Key - configure after import"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "22ea597a-51e1-4199-b60a-9bc960777a78",
+            "leftValue": "={{ $json.action === 'CLOSE_TICKET' }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+          }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ed2c83ba-6a79-450e-a969-e8b4bda382fb",
+      "name": "Close Ticket?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [420, 240]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "Tickets", "mode": "name" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ticket_id": "={{ $json.ticket_id }}",
+            "ticket_number": "={{ $json.ticket_number }}",
+            "gmail_thread_id": "={{ $('Normalize Email').item.json.gmail_thread_id }}",
+            "last_gmail_message_id": "={{ $('Normalize Email').item.json.gmail_message_id }}",
+            "status": "CLOSED",
+            "confidence": "={{ $json.confidence }}",
+            "response_type": "={{ $json.response_type }}",
+            "web_search_count": "={{ $json.web_search_count }}",
+            "fallback_model_used": "={{ $json.fallback_model_used }}",
+            "updated_at": "={{ $now.toISO() }}",
+            "closed_at": "={{ $now.toISO() }}",
+            "processing_time_ms": "={{ $json.processing_time_ms }}",
+            "outcome": "CLOSE_TICKET",
+            "last_error": ""
+          },
+          "matchingColumns": ["ticket_id"],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "8de8d840-dbaa-45e2-87c0-c781498d0d58",
+      "name": "Update Ticket - CLOSED",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [660, 80],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "NBFC Google Sheets OAuth2 - configure after import"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "25da889d-1ac8-4273-ab65-204bcdad5d87",
+            "leftValue": "={{ $json.safe_to_send === true && ['SEND_REPLY', 'SAFE_FALLBACK'].includes($json.action) }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+          }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3bb68b17-e7e8-4b9d-af25-f95c66a84836",
+      "name": "Safe to Send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [660, 320]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "Tickets", "mode": "name" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ticket_id": "={{ $json.ticket_id }}",
+            "ticket_number": "={{ $json.ticket_number }}",
+            "gmail_thread_id": "={{ $('Normalize Email').item.json.gmail_thread_id }}",
+            "last_gmail_message_id": "={{ $('Normalize Email').item.json.gmail_message_id }}",
+            "status": "WAITING_FOR_CUSTOMER",
+            "confidence": "={{ $json.confidence }}",
+            "response_type": "={{ $json.response_type }}",
+            "updated_at": "={{ $now.toISO() }}",
+            "processing_time_ms": "={{ $json.processing_time_ms }}",
+            "outcome": "WITHHELD_UNSAFE",
+            "last_error": "Response was not eligible for Gmail delivery"
+          },
+          "matchingColumns": ["ticket_id"],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "432cad05-539d-46ab-810b-6dac60e8e292",
+      "name": "Update Ticket - WITHHELD",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [900, 460],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "NBFC Google Sheets OAuth2 - configure after import"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $('Normalize Email').item.json.gmail_message_id }}",
+        "message": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "2cc710f8-11d7-43ba-8101-a4a8416b6d84",
+      "name": "Gmail Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [900, 280],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "REPLACE_WITH_GMAIL_CREDENTIAL_ID",
+          "name": "NBFC Gmail OAuth2 - configure after import"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [{
+            "id": "7fc2ad3d-f494-4f9b-8743-67d09c525c8c",
+            "leftValue": "={{ Boolean($json.id || $json.messageId) && !$json.error }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+          }],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2db3ea84-3f51-4a89-8426-e65789e9e946",
+      "name": "Gmail Delivery Succeeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1120, 280]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "Tickets", "mode": "name" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ticket_id": "={{ $('HTTP Process Ticket').item.json.ticket_id }}",
+            "ticket_number": "={{ $('HTTP Process Ticket').item.json.ticket_number }}",
+            "gmail_thread_id": "={{ $('Normalize Email').item.json.gmail_thread_id }}",
+            "last_gmail_message_id": "={{ $('Normalize Email').item.json.gmail_message_id }}",
+            "status": "WAITING_FOR_CUSTOMER",
+            "confidence": "={{ $('HTTP Process Ticket').item.json.confidence }}",
+            "response_type": "={{ $('HTTP Process Ticket').item.json.response_type }}",
+            "web_search_count": "={{ $('HTTP Process Ticket').item.json.web_search_count }}",
+            "fallback_model_used": "={{ $('HTTP Process Ticket').item.json.fallback_model_used }}",
+            "updated_at": "={{ $now.toISO() }}",
+            "last_response_at": "={{ $now.toISO() }}",
+            "processing_time_ms": "={{ $('HTTP Process Ticket').item.json.processing_time_ms }}",
+            "outcome": "SENT",
+            "last_error": ""
+          },
+          "matchingColumns": ["ticket_id"],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "d7df003a-da8a-4c77-8df2-54073f3ec310",
+      "name": "Update Ticket - SENT",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [1340, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "NBFC Google Sheets OAuth2 - configure after import"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://REPLACE_WITH_FASTAPI_HOST/api/v1/tickets/delivery",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ ticket_id: $('HTTP Process Ticket').item.json.ticket_id, gmail_inbound_message_id: $('Normalize Email').item.json.gmail_message_id, delivery_status: 'SENT', gmail_outbound_message_id: String($('Gmail Reply').item.json.id ?? $('Gmail Reply').item.json.messageId), sent_at: $now.toISO() }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "04f85bff-5f16-468a-9353-c939e192648c",
+      "name": "Confirm Delivery - SENT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_FASTAPI_HEADER_CREDENTIAL_ID",
+          "name": "NBFC FastAPI X-Internal-API-Key - configure after import"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": { "__rl": true, "value": "REPLACE_WITH_GOOGLE_SHEET_ID", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "Tickets", "mode": "name" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ticket_id": "={{ $('HTTP Process Ticket').item.json.ticket_id }}",
+            "ticket_number": "={{ $('HTTP Process Ticket').item.json.ticket_number }}",
+            "gmail_thread_id": "={{ $('Normalize Email').item.json.gmail_thread_id }}",
+            "last_gmail_message_id": "={{ $('Normalize Email').item.json.gmail_message_id }}",
+            "status": "WAITING_FOR_CUSTOMER",
+            "updated_at": "={{ $now.toISO() }}",
+            "processing_time_ms": "={{ $('HTTP Process Ticket').item.json.processing_time_ms }}",
+            "outcome": "DELIVERY_FAILED",
+            "last_error": "={{ String($json.error?.message ?? $json.message ?? 'Gmail delivery failed') }}"
+          },
+          "matchingColumns": ["ticket_id"],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "1e6e2021-9534-40eb-8eeb-cc3bce77e23e",
+      "name": "Update Ticket - DELIVERY FAILED",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.6,
+      "position": [1340, 360],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "NBFC Google Sheets OAuth2 - configure after import"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://REPLACE_WITH_FASTAPI_HOST/api/v1/tickets/delivery",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ ticket_id: $('HTTP Process Ticket').item.json.ticket_id, gmail_inbound_message_id: $('Normalize Email').item.json.gmail_message_id, delivery_status: 'FAILED', error_code: String($('Gmail Reply').item.json.error?.message ?? 'GMAIL_SEND_FAILED').slice(0, 250) }) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "60afce12-5225-422d-893e-d01a1141d74d",
+      "name": "Confirm Delivery - FAILED",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 360],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_FASTAPI_HEADER_CREDENTIAL_ID",
+          "name": "NBFC FastAPI X-Internal-API-Key - configure after import"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": { "main": [[{ "node": "Normalize Email", "type": "main", "index": 0 }]] },
+    "Normalize Email": { "main": [[{ "node": "Lookup Ticket by Thread", "type": "main", "index": 0 }]] },
+    "Lookup Ticket by Thread": { "main": [[{ "node": "HTTP Preflight", "type": "main", "index": 0 }]] },
+    "HTTP Preflight": { "main": [[{ "node": "Blocked or Duplicate?", "type": "main", "index": 0 }]] },
+    "Blocked or Duplicate?": {
+      "main": [
+        [{ "node": "Stop - Blocked or Duplicate", "type": "main", "index": 0 }],
+        [{ "node": "Upsert Ticket - PROCESSING", "type": "main", "index": 0 }]
+      ]
+    },
+    "Upsert Ticket - PROCESSING": { "main": [[{ "node": "HTTP Process Ticket", "type": "main", "index": 0 }]] },
+    "HTTP Process Ticket": { "main": [[{ "node": "Close Ticket?", "type": "main", "index": 0 }]] },
+    "Close Ticket?": {
+      "main": [
+        [{ "node": "Update Ticket - CLOSED", "type": "main", "index": 0 }],
+        [{ "node": "Safe to Send?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Safe to Send?": {
+      "main": [
+        [{ "node": "Gmail Reply", "type": "main", "index": 0 }],
+        [{ "node": "Update Ticket - WITHHELD", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gmail Reply": { "main": [[{ "node": "Gmail Delivery Succeeded?", "type": "main", "index": 0 }]] },
+    "Gmail Delivery Succeeded?": {
+      "main": [
+        [{ "node": "Update Ticket - SENT", "type": "main", "index": 0 }],
+        [{ "node": "Update Ticket - DELIVERY FAILED", "type": "main", "index": 0 }]
+      ]
+    },
+    "Update Ticket - SENT": { "main": [[{ "node": "Confirm Delivery - SENT", "type": "main", "index": 0 }]] },
+    "Update Ticket - DELIVERY FAILED": { "main": [[{ "node": "Confirm Delivery - FAILED", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Kolkata",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none"
+  },
+  "versionId": "5e72b39a-7724-4695-8e4a-97c484d1ed91",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
