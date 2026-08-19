@@ -20,7 +20,7 @@ services:
       - .env
     environment:
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Set INTERNAL_API_KEY in .env (minimum 16 characters)}
-      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-nbfc}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-nbfc_ticketing}
       CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-70}
       MAX_WEB_SEARCH_ATTEMPTS: ${MAX_WEB_SEARCH_ATTEMPTS:-2}
       DATA_ROOT: ${DATA_ROOT:-data}

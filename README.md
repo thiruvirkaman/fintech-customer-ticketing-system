@@ -99,7 +99,7 @@ Copy `.env.example` to `.env`; never commit `.env`.
 Required for full operation:
 
 - `INTERNAL_API_KEY`: random string of at least 16 characters.
-- `POSTGRES_PASSWORD` and `DATABASE_URL`: database credentials.
+- `POSTGRES_PASSWORD`: database password; Compose constructs `DATABASE_URL` from the PostgreSQL settings.
 - `OPENAI_API_KEY`: primary model and embeddings.
 - `OLLAMA_BASE_URL`, `OLLAMA_API_KEY`, `OLLAMA_MODEL`: fallback model.
 - `SERPER_API_KEY`: optional; without it web search is unavailable.
