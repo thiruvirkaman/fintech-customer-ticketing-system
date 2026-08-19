@@ -18,9 +18,11 @@ COPY tests ./tests
 CMD ["python", "-m", "pytest", "-q"]
 
 FROM base AS runtime
+ENV XDG_DATA_HOME=/app/.local/share CREWAI_TRACING_ENABLED=false
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN addgroup --system app && adduser --system --ingroup app app \
-    && chown -R app:app /app \
+RUN addgroup --system app && adduser --system --home /home/app --ingroup app app \
+    && mkdir -p /home/app /app/.local/share \
+    && chown -R app:app /home/app /app \
     && chmod 755 /usr/local/bin/docker-entrypoint.sh
 USER app
 EXPOSE 8000
