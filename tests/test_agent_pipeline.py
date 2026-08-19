@@ -72,11 +72,20 @@ def test_general_question_uses_rag_validation_email_and_guardrail() -> None:
                     intent="GENERAL",
                     draft_answer="A grounded answer.",
                     evidence_ids=["RAG-1"],
+                    unknowns=[],
                     provisional_confidence=90,
                 )
             ],
             AgentStage.VALIDATION: [
-                ValidationOutput(supported=True, complete=True, confidence=90, decision="PASS")
+                ValidationOutput(
+                    supported=True,
+                    complete=True,
+                    conflicts=[],
+                    unsupported_claims=[],
+                    missing_information=[],
+                    confidence=90,
+                    decision="PASS",
+                )
             ],
             AgentStage.EMAIL: [
                 EmailOutput(
@@ -86,7 +95,14 @@ def test_general_question_uses_rag_validation_email_and_guardrail() -> None:
                     safe_for_guardrail_check=True,
                 )
             ],
-            AgentStage.OUTPUT_GUARDRAIL: [OutputSemanticGuardrailOutput(safe_to_send=True)],
+            AgentStage.OUTPUT_GUARDRAIL: [
+                OutputSemanticGuardrailOutput(
+                    safe_to_send=True,
+                    violations=[],
+                    masked_fields=[],
+                    unsupported_claims=[],
+                )
+            ],
         }
     )
     pipeline = AgentPipeline(
@@ -117,12 +133,29 @@ def test_low_confidence_triggers_bounded_web_search_then_revalidation() -> None:
                     intent="GENERAL",
                     draft_answer="Draft",
                     evidence_ids=["RAG-1"],
+                    unknowns=[],
                     provisional_confidence=40,
                 )
             ],
             AgentStage.VALIDATION: [
-                ValidationOutput(supported=True, complete=True, confidence=50, decision="SEARCH_REQUIRED"),
-                ValidationOutput(supported=True, complete=True, confidence=80, decision="PASS"),
+                ValidationOutput(
+                    supported=True,
+                    complete=True,
+                    conflicts=[],
+                    unsupported_claims=[],
+                    missing_information=[],
+                    confidence=50,
+                    decision="SEARCH_REQUIRED",
+                ),
+                ValidationOutput(
+                    supported=True,
+                    complete=True,
+                    conflicts=[],
+                    unsupported_claims=[],
+                    missing_information=[],
+                    confidence=80,
+                    decision="PASS",
+                ),
             ],
             AgentStage.WEB_SYNTHESIS: [
                 WebSynthesisOutput(
@@ -139,7 +172,14 @@ def test_low_confidence_triggers_bounded_web_search_then_revalidation() -> None:
                     safe_for_guardrail_check=True,
                 )
             ],
-            AgentStage.OUTPUT_GUARDRAIL: [OutputSemanticGuardrailOutput(safe_to_send=True)],
+            AgentStage.OUTPUT_GUARDRAIL: [
+                OutputSemanticGuardrailOutput(
+                    safe_to_send=True,
+                    violations=[],
+                    masked_fields=[],
+                    unsupported_claims=[],
+                )
+            ],
         }
     )
     search = FakeSearch()
@@ -171,22 +211,31 @@ def test_customer_specific_request_without_db_facts_requests_information() -> No
                     intent="CUSTOMER_SPECIFIC",
                     draft_answer="Unknown current status.",
                     evidence_ids=["RAG-1"],
+                    unknowns=["application identity"],
                     provisional_confidence=20,
                 ),
                 ResearchOutput(
                     intent="CUSTOMER_SPECIFIC",
                     draft_answer="Unknown current status.",
                     evidence_ids=["RAG-1"],
+                    unknowns=["application identity"],
                     provisional_confidence=20,
                 ),
             ],
             AgentStage.DB: [
-                DBAnalysisOutput(requires_db_evidence=True, unknowns=["application identity"])
+                DBAnalysisOutput(
+                    requires_db_evidence=True,
+                    facts=[],
+                    evidence_ids=[],
+                    unknowns=["application identity"],
+                )
             ],
             AgentStage.VALIDATION: [
                 ValidationOutput(
                     supported=False,
                     complete=False,
+                    conflicts=[],
+                    unsupported_claims=[],
                     missing_information=["application ID"],
                     confidence=20,
                     decision="NEED_MORE_INFORMATION",
@@ -221,19 +270,38 @@ def test_unsafe_email_gets_only_one_bounded_regeneration() -> None:
                     intent="GENERAL",
                     draft_answer="Grounded answer",
                     evidence_ids=["RAG-1"],
+                    unknowns=[],
                     provisional_confidence=90,
                 )
             ],
             AgentStage.VALIDATION: [
-                ValidationOutput(supported=True, complete=True, confidence=90, decision="PASS")
+                ValidationOutput(
+                    supported=True,
+                    complete=True,
+                    conflicts=[],
+                    unsupported_claims=[],
+                    missing_information=[],
+                    confidence=90,
+                    decision="PASS",
+                )
             ],
             AgentStage.EMAIL: [
                 EmailOutput(subject="Re: Question", body="unsafe", response_type="ANSWER", safe_for_guardrail_check=True),
                 EmailOutput(subject="Re: Question", body="safe revision", response_type="ANSWER", safe_for_guardrail_check=True),
             ],
             AgentStage.OUTPUT_GUARDRAIL: [
-                OutputSemanticGuardrailOutput(safe_to_send=False, violations=["INTERNAL_CONTENT"]),
-                OutputSemanticGuardrailOutput(safe_to_send=True),
+                OutputSemanticGuardrailOutput(
+                    safe_to_send=False,
+                    violations=["INTERNAL_CONTENT"],
+                    masked_fields=[],
+                    unsupported_claims=[],
+                ),
+                OutputSemanticGuardrailOutput(
+                    safe_to_send=True,
+                    violations=[],
+                    masked_fields=[],
+                    unsupported_claims=[],
+                ),
             ],
         }
     )

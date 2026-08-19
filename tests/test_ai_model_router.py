@@ -12,6 +12,9 @@ def validation(confidence: int) -> ValidationOutput:
     return ValidationOutput(
         supported=confidence >= 70,
         complete=confidence >= 70,
+        conflicts=[],
+        unsupported_claims=[],
+        missing_information=[],
         confidence=confidence,
         decision="PASS" if confidence >= 70 else "SEARCH_REQUIRED",
     )

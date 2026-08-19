@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AgentStage(str, Enum):
@@ -24,68 +24,79 @@ class EvidenceItem(BaseModel):
     relevance_score: float | None = Field(default=None, ge=-1, le=1)
 
 
-class ResearchOutput(BaseModel):
+class StrictAgentOutput(BaseModel):
+    """Base for OpenAI Structured Outputs returned by CrewAI stages."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ResearchOutput(StrictAgentOutput):
     intent: Literal["GENERAL", "CUSTOMER_SPECIFIC", "FOLLOW_UP", "RESOLUTION_CONFIRMATION"]
     draft_answer: str
-    evidence_ids: list[str] = Field(default_factory=list)
-    unknowns: list[str] = Field(default_factory=list)
+    evidence_ids: list[str]
+    unknowns: list[str]
     provisional_confidence: int = Field(ge=0, le=100)
 
 
-class InputSemanticGuardrailOutput(BaseModel):
+class InputSemanticGuardrailOutput(StrictAgentOutput):
     allowed: bool
     spam_confidence: int = Field(ge=0, le=100)
-    violations: list[str] = Field(default_factory=list)
-    reason_codes: list[str] = Field(default_factory=list)
+    violations: list[str]
+    reason_codes: list[str]
 
 
-class DBAnalysisOutput(BaseModel):
+class DBFact(StrictAgentOutput):
+    name: str = Field(min_length=1)
+    value: str
+
+
+class DBAnalysisOutput(StrictAgentOutput):
     requires_db_evidence: bool
-    facts: dict[str, str | int | float | bool | None] = Field(default_factory=dict)
-    evidence_ids: list[str] = Field(default_factory=list)
-    unknowns: list[str] = Field(default_factory=list)
+    facts: list[DBFact]
+    evidence_ids: list[str]
+    unknowns: list[str]
 
 
-class ValidationOutput(BaseModel):
+class ValidationOutput(StrictAgentOutput):
     supported: bool
     complete: bool
-    conflicts: list[str] = Field(default_factory=list)
-    unsupported_claims: list[str] = Field(default_factory=list)
-    missing_information: list[str] = Field(default_factory=list)
+    conflicts: list[str]
+    unsupported_claims: list[str]
+    missing_information: list[str]
     confidence: int = Field(ge=0, le=100)
     decision: Literal["PASS", "SEARCH_REQUIRED", "NEED_MORE_INFORMATION", "CONFLICT"]
 
 
-class WebSynthesisOutput(BaseModel):
+class WebSynthesisOutput(StrictAgentOutput):
     generic_query: str = Field(min_length=1)
-    evidence_ids: list[str] = Field(default_factory=list)
-    relevant_evidence: list[str] = Field(default_factory=list)
+    evidence_ids: list[str]
+    relevant_evidence: list[str]
 
 
-class ManagerOutput(BaseModel):
+class ManagerOutput(StrictAgentOutput):
     outcome: Literal[
         "RESOLVED_WITH_EVIDENCE",
         "REQUEST_VALIDATION",
         "NEED_MORE_INFORMATION",
         "SAFE_FALLBACK",
     ]
-    answer: str = ""
-    evidence_ids: list[str] = Field(default_factory=list)
-    rationale: str = ""
+    answer: str
+    evidence_ids: list[str]
+    rationale: str
 
 
-class EmailOutput(BaseModel):
+class EmailOutput(StrictAgentOutput):
     subject: str = Field(min_length=1)
     body: str = Field(min_length=1)
     response_type: Literal["ANSWER", "NEED_MORE_INFO", "SAFE_FALLBACK"]
     safe_for_guardrail_check: bool
 
 
-class OutputSemanticGuardrailOutput(BaseModel):
+class OutputSemanticGuardrailOutput(StrictAgentOutput):
     safe_to_send: bool
-    violations: list[str] = Field(default_factory=list)
-    masked_fields: list[str] = Field(default_factory=list)
-    unsupported_claims: list[str] = Field(default_factory=list)
+    violations: list[str]
+    masked_fields: list[str]
+    unsupported_claims: list[str]
 
 
 class ModelAttempt(BaseModel):

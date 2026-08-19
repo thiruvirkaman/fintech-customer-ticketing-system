@@ -1,6 +1,6 @@
 FROM python:3.12-slim AS base
 
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 CREWAI_TRACING_ENABLED=false
 WORKDIR /app
 
 COPY requirements.txt .
@@ -18,7 +18,7 @@ COPY tests ./tests
 CMD ["python", "-m", "pytest", "-q"]
 
 FROM base AS runtime
-ENV XDG_DATA_HOME=/app/.local/share CREWAI_TRACING_ENABLED=false
+ENV XDG_DATA_HOME=/app/.local/share
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN addgroup --system app && adduser --system --home /home/app --ingroup app app \
     && mkdir -p /home/app /app/.local/share \
