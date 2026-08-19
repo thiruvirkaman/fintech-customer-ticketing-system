@@ -6,6 +6,21 @@ from uuid import UUID
 from app.models import DeliveryRequest, IncomingEmail, ProcessingResult, Ticket, TicketStatus
 
 
+def normalize_message_body(value: str) -> str:
+    unquoted_lines: list[str] = []
+    for line in value.splitlines():
+        stripped = line.strip()
+        normalized_line = stripped.casefold()
+        if (
+            normalized_line == "-----original message-----"
+            or (normalized_line.startswith("on ") and normalized_line.endswith(" wrote:"))
+        ):
+            break
+        if not stripped.startswith(">"):
+            unquoted_lines.append(stripped)
+    return " ".join(" ".join(unquoted_lines).casefold().split())
+
+
 class RepositoryError(Exception):
     """Base class for repository contract failures."""
 
@@ -169,6 +184,27 @@ class InMemoryTicketRepository:
             self._processing_message_ids.discard(gmail_message_id)
             self._processing_ticket_ids.discard(result.ticket_id)
             self._processing_results[gmail_message_id] = result
+
+    def has_delivered_matching_message(self, email: IncomingEmail) -> bool:
+        """Return true only for a new message matching a previously delivered request."""
+        normalized_body = normalize_message_body(email.body_text)
+        normalized_sender = email.sender_email.casefold().strip()
+        with self._lock:
+            for message_id in self._thread_message_ids.get(email.gmail_thread_id, []):
+                if message_id == email.gmail_message_id:
+                    continue
+                reservation = self._reservations.get(message_id)
+                if reservation is None:
+                    continue
+                delivery = self._deliveries.get((reservation.ticket_id, message_id))
+                if (
+                    delivery is not None
+                    and delivery.delivery_status == "SENT"
+                    and reservation.sender_email == normalized_sender
+                    and normalize_message_body(reservation.body_text) == normalized_body
+                ):
+                    return True
+            return False
 
     def abort_processing(self, gmail_message_id: str, ticket_id: UUID, previous_status: TicketStatus) -> None:
         with self._lock:

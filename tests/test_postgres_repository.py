@@ -92,6 +92,15 @@ def test_postgres_repository_persists_idempotent_lifecycle(repository: PostgresT
         ).all()
         assert directions == ["INBOUND", "OUTBOUND"]
 
+    repeated = _email("db-message-2")
+    repeated_ticket, duplicate, _ = repository.preflight(repeated)
+    assert repeated_ticket is not None and not duplicate
+    assert repository.has_delivered_matching_message(repeated) is True
+
+    different = _email("db-message-3").model_copy(update={"body_text": "A different question"})
+    repository.preflight(different)
+    assert repository.has_delivered_matching_message(different) is False
+
 
 def test_closed_thread_creates_linked_postgres_ticket(repository: PostgresTicketRepository) -> None:
     first, _, _ = repository.preflight(_email("db-close-1", "db-closed-thread"))

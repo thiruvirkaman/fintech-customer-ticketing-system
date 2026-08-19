@@ -351,7 +351,7 @@
             "updated_at": "={{ $now.toISO() }}",
             "last_response_at": "={{ $now.toISO() }}",
             "processing_time_ms": "={{ $('HTTP Process Ticket').item.json.processing_time_ms }}",
-            "outcome": "SENT",
+            "outcome": "={{ $('HTTP Process Ticket').item.json.repeat_query === true ? 'ALREADY_ANSWERED' : 'SENT' }}",
             "last_error": ""
           },
           "matchingColumns": ["ticket_id"],

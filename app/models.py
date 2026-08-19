@@ -77,6 +77,7 @@ class ProcessingResult(BaseModel):
     confidence: int = Field(ge=0, le=100)
     safe_to_send: bool
     duplicate: bool = False
+    repeat_query: bool = False
     evidence_ids: list[str] = Field(default_factory=list)
     validation_decision: Literal["PASS", "NEED_MORE_INFORMATION", "SAFE_FALLBACK"]
     web_search_count: int = 0

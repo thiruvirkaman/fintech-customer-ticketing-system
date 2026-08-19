@@ -1,6 +1,12 @@
 import pytest
 
-from app.models import IncomingEmail, ProcessTicketRequest, TicketStatus
+from app.models import (
+    DeliveryRequest,
+    IncomingEmail,
+    ProcessingResult,
+    ProcessTicketRequest,
+    TicketStatus,
+)
 from app.repository import InMemoryTicketRepository, ProcessingInProgressError
 
 
@@ -16,6 +22,59 @@ def test_duplicate_message_is_rejected_and_open_thread_is_reused() -> None:
     assert duplicate
     second, duplicate, is_new = repo.preflight(email("message-2"))
     assert second == first and not duplicate and not is_new
+
+
+def test_only_new_messages_matching_a_delivered_request_are_repeat_queries() -> None:
+    repo = InMemoryTicketRepository()
+    first_email = email("repeat-message-1", "repeat-thread")
+    ticket, _, _ = repo.preflight(first_email)
+    request = ProcessTicketRequest(
+        **first_email.model_dump(),
+        ticket_id=ticket.ticket_id,
+        ticket_number=ticket.ticket_number,
+    )
+    repo.begin_processing(request, ticket.ticket_id, ticket.ticket_number)
+    repo.finish_processing(
+        first_email.gmail_message_id,
+        ProcessingResult(
+            ticket_id=ticket.ticket_id,
+            ticket_number=ticket.ticket_number,
+            action="SEND_REPLY",
+            response_type="ANSWER",
+            subject="Re: Question",
+            body="Answer",
+            confidence=90,
+            safe_to_send=True,
+            validation_decision="PASS",
+            processing_time_ms=1,
+        ),
+    )
+    repo.record_delivery(
+        DeliveryRequest(
+            ticket_id=ticket.ticket_id,
+            gmail_inbound_message_id=first_email.gmail_message_id,
+            delivery_status="SENT",
+            gmail_outbound_message_id="repeat-outbound-1",
+        )
+    )
+
+    repeated = email("repeat-message-2", "repeat-thread").model_copy(
+        update={
+            "body_text": (
+                "  QUESTION  \n\n"
+                "On Wed, 20 Aug 2026 at 12:00, Support wrote:\n"
+                "> Answer"
+            )
+        }
+    )
+    repo.preflight(repeated)
+    assert repo.has_delivered_matching_message(repeated) is True
+
+    different = email("repeat-message-3", "repeat-thread").model_copy(
+        update={"body_text": "different question"}
+    )
+    repo.preflight(different)
+    assert repo.has_delivered_matching_message(different) is False
 
 
 def test_closed_thread_creates_linked_ticket() -> None:

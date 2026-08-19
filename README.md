@@ -39,6 +39,7 @@ preflight and message reservation
 ```
 
 Different tickets can run concurrently. PostgreSQL serializes messages in the same Gmail thread to prevent duplicate or out-of-order replies.
+An exact Gmail message retry remains a silent no-op. A new message in the same thread whose normalized body matches a previously delivered request receives one acknowledgement directing the customer to the earlier reply; a retry of that acknowledgement request is again a no-op. The n8n workflow records the acknowledgement as `ALREADY_ANSWERED` in the Sheet `outcome` column.
 
 ## Repository structure
 

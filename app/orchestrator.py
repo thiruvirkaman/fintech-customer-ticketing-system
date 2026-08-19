@@ -71,6 +71,7 @@ class TicketOrchestrator:
                     "body": "",
                     "safe_to_send": False,
                     "duplicate": True,
+                    "repeat_query": False,
                     "processing_time_ms": max(0, round((monotonic() - started) * 1000)),
                 }
             )
@@ -81,6 +82,27 @@ class TicketOrchestrator:
         previous_status = ticket.status
         try:
             self.repository.update_status(ticket.ticket_id, TicketStatus.PROCESSING)
+            if self.repository.has_delivered_matching_message(effective_request):
+                result = self._result(
+                    effective_request,
+                    "SEND_REPLY",
+                    "ANSWER",
+                    (
+                        "We previously replied to this request in this email thread. "
+                        "Please review our earlier email. If you still need assistance, "
+                        "reply with any additional details and we will review them."
+                    ),
+                    100,
+                    "PASS",
+                    [],
+                    started,
+                    repeat_query=True,
+                )
+                return self._finish(
+                    effective_request,
+                    result,
+                    TicketStatus.WAITING_FOR_CUSTOMER,
+                )
             allowed, _ = inspect_input(f"{effective_request.subject}\n{effective_request.body_text}")
             if not allowed:
                 result = self._result(
@@ -244,6 +266,7 @@ class TicketOrchestrator:
         web_search_count: int = 0,
         manager_used: bool = False,
         fallback_model_used: bool = False,
+        repeat_query: bool = False,
     ) -> ProcessingResult:
         subject = f"Re: {request.subject}" if request.subject else f"Ticket {request.ticket_number}"
         guarded_subject = inspect_output(subject)
@@ -267,6 +290,7 @@ class TicketOrchestrator:
             body=guarded_body.text,
             confidence=confidence,
             safe_to_send=guarded_subject.safe_to_send and guarded_body.safe_to_send,
+            repeat_query=repeat_query,
             evidence_ids=evidence_ids,
             validation_decision=validation_decision,
             web_search_count=web_search_count,

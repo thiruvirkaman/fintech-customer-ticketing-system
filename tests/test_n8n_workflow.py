@@ -92,3 +92,12 @@ def test_processing_timeout_allows_internal_budget() -> None:
     workflow = load_workflow()
     process_node = next(node for node in workflow["nodes"] if node["name"] == "HTTP Process Ticket")
     assert process_node["parameters"]["options"]["timeout"] >= 50_000
+
+
+def test_repeat_acknowledgement_is_visible_in_sheet_outcome() -> None:
+    workflow = load_workflow()
+    sent_node = next(node for node in workflow["nodes"] if node["name"] == "Update Ticket - SENT")
+    outcome = sent_node["parameters"]["columns"]["value"]["outcome"]
+
+    assert "repeat_query" in outcome
+    assert "ALREADY_ANSWERED" in outcome

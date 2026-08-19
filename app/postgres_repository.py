@@ -21,6 +21,7 @@ from app.repository import (
     MessageNotPreflightedError,
     ProcessingInProgressError,
     TicketNotFoundError,
+    normalize_message_body,
 )
 
 
@@ -311,6 +312,24 @@ class PostgresTicketRepository:
                 result.ticket_id,
                 "PROCESSING_FINISHED",
                 {"gmail_message_id": gmail_message_id, "action": result.action},
+            )
+
+    def has_delivered_matching_message(self, email: IncomingEmail) -> bool:
+        """Return true only for a new message matching a previously delivered request."""
+        with self.session_factory() as session:
+            candidates = session.scalars(
+                select(EmailMessageRecord).where(
+                    EmailMessageRecord.gmail_thread_id == email.gmail_thread_id,
+                    EmailMessageRecord.gmail_message_id != email.gmail_message_id,
+                    EmailMessageRecord.direction == "INBOUND",
+                    EmailMessageRecord.sender_email == email.sender_email.casefold().strip(),
+                    EmailMessageRecord.delivery_status == "SENT",
+                )
+            )
+            normalized_body = normalize_message_body(email.body_text)
+            return any(
+                normalize_message_body(candidate.body_text) == normalized_body
+                for candidate in candidates
             )
 
     def record_agent_audit(

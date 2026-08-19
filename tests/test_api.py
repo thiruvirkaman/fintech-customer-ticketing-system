@@ -62,6 +62,69 @@ def test_processing_requires_matching_preflight_payload_and_is_idempotent() -> N
     assert duplicate.json()["safe_to_send"] is False
 
 
+def test_new_message_repeating_delivered_question_gets_one_acknowledgement() -> None:
+    first_email = {
+        "gmail_message_id": "repeat-query-1",
+        "gmail_thread_id": "repeat-query-thread",
+        "sender_email": "demo@example.com",
+        "subject": "Statement",
+        "body_text": "Why is a bank statement required?",
+    }
+    first_ticket = client.post("/api/v1/preflight", json=first_email, headers=headers).json()[
+        "ticket"
+    ]
+    first_request = {
+        **first_email,
+        "ticket_id": first_ticket["ticket_id"],
+        "ticket_number": first_ticket["ticket_number"],
+    }
+    first_result = client.post(
+        "/api/v1/tickets/process", json=first_request, headers=headers
+    )
+    assert first_result.json()["action"] == "SEND_REPLY"
+    delivered = client.post(
+        "/api/v1/tickets/delivery",
+        json={
+            "ticket_id": first_ticket["ticket_id"],
+            "gmail_inbound_message_id": first_email["gmail_message_id"],
+            "delivery_status": "SENT",
+            "gmail_outbound_message_id": "repeat-query-outbound-1",
+        },
+        headers=headers,
+    )
+    assert delivered.status_code == 200
+
+    repeated_email = {
+        **first_email,
+        "gmail_message_id": "repeat-query-2",
+        "body_text": "  WHY is a bank statement required?  ",
+    }
+    repeated_ticket = client.post(
+        "/api/v1/preflight", json=repeated_email, headers=headers
+    ).json()["ticket"]
+    repeated_request = {
+        **repeated_email,
+        "ticket_id": repeated_ticket["ticket_id"],
+        "ticket_number": repeated_ticket["ticket_number"],
+    }
+    acknowledgement = client.post(
+        "/api/v1/tickets/process", json=repeated_request, headers=headers
+    )
+    assert acknowledgement.status_code == 200
+    assert acknowledgement.json()["action"] == "SEND_REPLY"
+    assert acknowledgement.json()["safe_to_send"] is True
+    assert acknowledgement.json()["repeat_query"] is True
+    assert "previously replied" in acknowledgement.json()["body"]
+
+    exact_retry = client.post(
+        "/api/v1/tickets/process", json=repeated_request, headers=headers
+    )
+    assert exact_retry.status_code == 200
+    assert exact_retry.json()["action"] == "NO_ACTION"
+    assert exact_retry.json()["duplicate"] is True
+    assert exact_retry.json()["repeat_query"] is False
+
+
 def test_subject_is_masked_and_delivery_is_bound_to_inbound_message() -> None:
     email = {"gmail_message_id": "api-message-delivery", "gmail_thread_id": "api-thread-delivery", "sender_email": "demo@example.com", "subject": "PAN ABCDE1234F", "body_text": "Why is a bank statement required?"}
     ticket = client.post("/api/v1/preflight", json=email, headers=headers).json()["ticket"]
