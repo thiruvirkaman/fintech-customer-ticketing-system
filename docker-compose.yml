@@ -1,14 +1,53 @@
 services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nbfc_ticketing}
+      POSTGRES_USER: ${POSTGRES_USER:-nbfc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   api:
     build: .
+    env_file:
+      - .env
     environment:
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:?Set INTERNAL_API_KEY in .env (minimum 16 characters)}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env}
       CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD:-70}
       MAX_WEB_SEARCH_ATTEMPTS: ${MAX_WEB_SEARCH_ATTEMPTS:-2}
+      DATA_ROOT: ${DATA_ROOT:-data}
+      ENABLE_CREWAI: ${ENABLE_CREWAI:-true}
+      PROCESSING_BUDGET_SECONDS: ${PROCESSING_BUDGET_SECONDS:-50}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-https://ollama.com}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-glm-5.2:cloud}
+      SERPER_API_KEY: ${SERPER_API_KEY:-}
+      RAG_INDEX_PATH: ${RAG_INDEX_PATH:-data/faiss}
+    volumes:
+      - faiss_data:/app/data/faiss
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  faiss_data:

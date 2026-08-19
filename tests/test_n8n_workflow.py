@@ -74,6 +74,21 @@ def test_gmail_normalization_handles_raw_mime_payloads() -> None:
     workflow = load_workflow()
     normalize_node = next(node for node in workflow["nodes"] if node["name"] == "Normalize Email")
     script = normalize_node["parameters"]["jsCode"]
+    assert "Array.isArray(rawHeaders)" in script
     assert "findPlainPart" in script
     assert "decodeBase64Url" in script
     assert "Buffer.from" in script
+
+
+def test_preflight_includes_google_sheet_ticket_reference() -> None:
+    workflow = load_workflow()
+    preflight_node = next(node for node in workflow["nodes"] if node["name"] == "HTTP Preflight")
+    body_expression = preflight_node["parameters"]["body"]
+    assert "existing_ticket" in body_expression
+    assert "Lookup Ticket by Thread" in workflow["connections"]
+
+
+def test_processing_timeout_allows_internal_budget() -> None:
+    workflow = load_workflow()
+    process_node = next(node for node in workflow["nodes"] if node["name"] == "HTTP Process Ticket")
+    assert process_node["parameters"]["options"]["timeout"] >= 50_000

@@ -17,6 +17,13 @@ class TicketStatus(str, Enum):
     CLOSED = "CLOSED"
 
 
+class ExistingTicketReference(BaseModel):
+    ticket_id: UUID
+    ticket_number: str
+    status: TicketStatus
+    parent_ticket_id: UUID | None = None
+
+
 class IncomingEmail(BaseModel):
     gmail_message_id: str = Field(min_length=1)
     gmail_thread_id: str = Field(min_length=1)
@@ -24,6 +31,7 @@ class IncomingEmail(BaseModel):
     subject: str = ""
     body_text: str = Field(min_length=1)
     received_at: datetime = Field(default_factory=utc_now)
+    existing_ticket: ExistingTicketReference | None = None
 
 
 class ProcessTicketRequest(IncomingEmail):

@@ -23,7 +23,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const source = $json;\nconst headers = source.payload?.headers ?? source.headers ?? [];\nconst header = (name) => {\n  const match = headers.find((entry) => String(entry.name ?? '').toLowerCase() === name.toLowerCase());\n  return match?.value ?? source[name.toLowerCase()] ?? source[name] ?? '';\n};\nconst findPlainPart = (parts = []) => {\n  for (const part of parts) {\n    if (part.mimeType === 'text/plain' && part.body?.data) return part.body.data;\n    const nested = findPlainPart(part.parts ?? []);\n    if (nested) return nested;\n  }\n  return '';\n};\nconst decodeBase64Url = (value) => {\n  if (!value) return '';\n  const normalizedValue = String(value).replace(/-/g, '+').replace(/_/g, '/');\n  return Buffer.from(normalizedValue, 'base64').toString('utf8');\n};\nconst from = header('From');\nconst sender = (from.match(/<([^>]+)>/)?.[1] ?? from).trim();\nconst encodedBody = source.payload?.body?.data ?? findPlainPart(source.payload?.parts);\nconst body = source.textPlain ?? source.text ?? (encodedBody ? decodeBase64Url(encodedBody) : '') ?? source.snippet ?? '';\nconst normalized = {\n  gmail_message_id: String(source.id ?? source.messageId ?? '').trim(),\n  gmail_thread_id: String(source.threadId ?? source.thread_id ?? '').trim(),\n  sender_email: sender,\n  subject: String(header('Subject') ?? ''),\n  body_text: String(body || source.snippet || '').trim(),\n  received_at: source.internalDate ? new Date(Number(source.internalDate)).toISOString() : new Date().toISOString()\n};\nfor (const field of ['gmail_message_id', 'gmail_thread_id', 'sender_email', 'body_text']) {\n  if (!normalized[field]) throw new Error(`Gmail payload is missing ${field}`);\n}\nreturn [{ json: normalized }];"
+        "jsCode": "const source = $json;\nconst rawHeaders = source.payload?.headers ?? source.headers ?? {};\nconst header = (name) => {\n  if (Array.isArray(rawHeaders)) {\n    const match = rawHeaders.find((entry) => String(entry.name ?? '').toLowerCase() === name.toLowerCase());\n    if (match?.value) return String(match.value);\n  }\n  if (rawHeaders && typeof rawHeaders === 'object') {\n    const key = Object.keys(rawHeaders).find((item) => item.toLowerCase() === name.toLowerCase());\n    if (key) {\n      const value = rawHeaders[key];\n      return typeof value === 'object' ? String(value?.value ?? '') : String(value ?? '');\n    }\n  }\n  return String(source[name] ?? source[name.toLowerCase()] ?? '');\n};\nconst findPlainPart = (parts) => {\n  if (!Array.isArray(parts)) return '';\n  for (const part of parts) {\n    if (part.mimeType === 'text/plain' && part.body?.data) return part.body.data;\n    const nested = findPlainPart(part.parts);\n    if (nested) return nested;\n  }\n  return '';\n};\nconst decodeBase64Url = (value) => {\n  if (!value) return '';\n  const normalizedValue = String(value).replace(/-/g, '+').replace(/_/g, '/');\n  return Buffer.from(normalizedValue, 'base64').toString('utf8');\n};\nconst from = header('From');\nconst sender = (from.match(/<([^>]+)>/)?.[1] ?? from).trim();\nconst encodedBody = source.payload?.body?.data ?? findPlainPart(source.payload?.parts);\nconst body = source.textPlain || source.text || (encodedBody ? decodeBase64Url(encodedBody) : '') || source.snippet || '';\nconst normalized = {\n  gmail_message_id: String(source.id ?? source.messageId ?? '').trim(),\n  gmail_thread_id: String(source.threadId ?? source.thread_id ?? '').trim(),\n  sender_email: sender,\n  subject: header('Subject'),\n  body_text: String(body).trim(),\n  received_at: source.internalDate ? new Date(Number(source.internalDate)).toISOString() : new Date().toISOString()\n};\nfor (const field of ['gmail_message_id', 'gmail_thread_id', 'sender_email', 'body_text']) {\n  if (!normalized[field]) throw new Error(`Gmail payload is missing ${field}`);\n}\nreturn [{ json: normalized }];"
       },
       "id": "20f7569f-dd4c-4de5-8ca7-ceb33b35d5b7",
       "name": "Normalize Email",
@@ -63,7 +63,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify($('Normalize Email').item.json) }}",
+        "body": "={{ JSON.stringify({ ...$('Normalize Email').item.json, existing_ticket: $json.ticket_id ? { ticket_id: $json.ticket_id, ticket_number: $json.ticket_number, status: $json.status, parent_ticket_id: $json.parent_ticket_id || null } : null }) }}",
         "options": { "timeout": 15000 }
       },
       "id": "7007b263-d230-440b-bca7-44889dd9506e",
@@ -156,7 +156,7 @@
         "contentType": "raw",
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify({ ...$('Normalize Email').item.json, ticket_id: $('HTTP Preflight').item.json.ticket.ticket_id, ticket_number: $('HTTP Preflight').item.json.ticket.ticket_number }) }}",
-        "options": { "timeout": 45000 }
+        "options": { "timeout": 55000 }
       },
       "id": "c95400e8-daf9-4c9d-b08f-727bb54a5fb2",
       "name": "HTTP Process Ticket",

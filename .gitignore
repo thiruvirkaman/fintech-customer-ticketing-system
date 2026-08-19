@@ -6,3 +6,5 @@ venv/
 *.py[cod]
 data/derived/*
 !data/derived/.gitkeep
+data/faiss/*
+!data/faiss/.gitkeep

@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.rag.sources import PublicSourceFetcher, read_local_source
+
 
 class KnowledgeDocument(BaseModel):
     document_id: str = Field(min_length=1)
@@ -98,13 +100,18 @@ def build_chunks(
     chunk_size: int = 800,
     overlap: int = 150,
     ingested_at: datetime | None = None,
+    public_fetcher: PublicSourceFetcher | None = None,
 ) -> list[KnowledgeChunk]:
     manifest = load_manifest(data_root)
     timestamp = ingested_at or datetime.now(timezone.utc)
     chunks: list[KnowledgeChunk] = []
     for document in manifest.documents:
         path = resolve_document_path(data_root, document.path)
-        content = path.read_text(encoding="utf-8")
+        if document.source_type == "PUBLIC_NBFC" and public_fetcher is not None:
+            assert document.source_url is not None
+            content = public_fetcher.fetch(document.source_url)
+        else:
+            content = read_local_source(path)
         for index, chunk_content in enumerate(split_text(content, chunk_size, overlap), start=1):
             chunks.append(
                 KnowledgeChunk(

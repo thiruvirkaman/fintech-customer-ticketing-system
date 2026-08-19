@@ -1,4 +1,5 @@
 from dataclasses import dataclass, replace
+import os
 from threading import RLock
 from uuid import UUID
 
@@ -211,4 +212,17 @@ class InMemoryTicketRepository:
             return False
 
 
-repository = InMemoryTicketRepository()
+def create_ticket_repository() -> InMemoryTicketRepository:
+    database_url = os.getenv("DATABASE_URL", "").strip()
+    if database_url:
+        from app.postgres_repository import PostgresTicketRepository
+
+        return PostgresTicketRepository(database_url)  # type: ignore[return-value]
+    if os.getenv("ALLOW_IN_MEMORY_REPOSITORY", "").casefold() == "true":
+        return InMemoryTicketRepository()
+    raise RuntimeError(
+        "DATABASE_URL is required; set ALLOW_IN_MEMORY_REPOSITORY=true only for tests or local demos"
+    )
+
+
+repository = create_ticket_repository()

@@ -1,8 +1,10 @@
 import re
+import logging
 from hashlib import sha256
 from time import monotonic
 
 from app.config import settings
+from app.ai.pipeline import AgentPipeline
 from app.guardrails import inspect_input, inspect_output
 from app.knowledge import BANK_STATEMENT_EVIDENCE, Evidence, is_registered_evidence
 from app.models import ProcessTicketRequest, ProcessingResult, TicketStatus
@@ -22,6 +24,7 @@ UNRESOLVED_PATTERN = re.compile(
 RENEWED_FAILURE_PATTERN = re.compile(
     r"\b(?:but|however|although|yet|again|still)\b.{0,60}\b(?:fail(?:s|ed|ing)?|broke|broken|error|issue|problem|not working)\b"
 )
+logger = logging.getLogger(__name__)
 
 
 def is_explicit_resolution(text: str) -> bool:
@@ -53,8 +56,9 @@ def validate_grounded_answer(question: str, answer: str, evidence: list[Evidence
 
 
 class TicketOrchestrator:
-    def __init__(self, repository: InMemoryTicketRepository) -> None:
+    def __init__(self, repository: InMemoryTicketRepository, agent_pipeline: AgentPipeline | None = None) -> None:
         self.repository = repository
+        self.agent_pipeline = agent_pipeline
 
     def process(self, request: ProcessTicketRequest) -> ProcessingResult:
         started = monotonic()
@@ -104,6 +108,71 @@ class TicketOrchestrator:
                     started,
                 )
                 return self._finish(effective_request, result, TicketStatus.CLOSED)
+
+            if self.agent_pipeline is not None:
+                try:
+                    pipeline_result = self.agent_pipeline.process(
+                        ticket_id=effective_request.ticket_id,
+                        ticket_number=effective_request.ticket_number,
+                        sender_email=effective_request.sender_email,
+                        subject=effective_request.subject,
+                        customer_question=effective_request.body_text,
+                    )
+                    action = (
+                        "SAFE_FALLBACK"
+                        if pipeline_result.response_type == "SAFE_FALLBACK"
+                        else "SEND_REPLY"
+                    )
+                    validation_decision = (
+                        pipeline_result.validation_decision
+                        if pipeline_result.validation_decision in {"PASS", "NEED_MORE_INFORMATION", "SAFE_FALLBACK"}
+                        else "SAFE_FALLBACK"
+                    )
+                    result = self._result(
+                        effective_request,
+                        action,
+                        pipeline_result.response_type,
+                        pipeline_result.answer,
+                        pipeline_result.confidence,
+                        validation_decision,
+                        pipeline_result.evidence_ids,
+                        started,
+                        web_search_count=pipeline_result.web_search_count,
+                        manager_used=pipeline_result.manager_used,
+                        fallback_model_used=pipeline_result.fallback_model_used,
+                    )
+                    record_audit = getattr(self.repository, "record_agent_audit", None)
+                    if record_audit is not None:
+                        record_audit(
+                            effective_request.ticket_id,
+                            pipeline_result.stage_executions,
+                            result,
+                        )
+                    return self._finish(
+                        effective_request,
+                        result,
+                        TicketStatus.WAITING_FOR_CUSTOMER,
+                    )
+                except Exception:
+                    logger.error(
+                        "agent pipeline failed safely",
+                        extra={"ticket_id": str(effective_request.ticket_id)},
+                    )
+                    result = self._result(
+                        effective_request,
+                        "SAFE_FALLBACK",
+                        "SAFE_FALLBACK",
+                        "We could not safely complete the requested research. Please try again later or contact support through the official channel.",
+                        settings.confidence_threshold - 1,
+                        "SAFE_FALLBACK",
+                        [],
+                        started,
+                    )
+                    return self._finish(
+                        effective_request,
+                        result,
+                        TicketStatus.WAITING_FOR_CUSTOMER,
+                    )
 
             if "bank statement" in normalized:
                 evidence = [BANK_STATEMENT_EVIDENCE]
@@ -171,6 +240,10 @@ class TicketOrchestrator:
         validation_decision: str,
         evidence_ids: list[str],
         started: float,
+        *,
+        web_search_count: int = 0,
+        manager_used: bool = False,
+        fallback_model_used: bool = False,
     ) -> ProcessingResult:
         subject = f"Re: {request.subject}" if request.subject else f"Ticket {request.ticket_number}"
         guarded_subject = inspect_output(subject)
@@ -196,5 +269,8 @@ class TicketOrchestrator:
             safe_to_send=guarded_subject.safe_to_send and guarded_body.safe_to_send,
             evidence_ids=evidence_ids,
             validation_decision=validation_decision,
+            web_search_count=web_search_count,
+            manager_used=manager_used,
+            fallback_model_used=fallback_model_used,
             processing_time_ms=max(0, round((monotonic() - started) * 1000)),
         )
